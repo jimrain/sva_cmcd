@@ -1,0 +1,6 @@
+version = 11
+name = "sva_nor"
+description = "Next Object Request Processing"
+authors = ["Jim Rainville"]
+language = "rust"
+service_id = "0Cp6k8IASGg9m8iw3VDmOs"
