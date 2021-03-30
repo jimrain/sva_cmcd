@@ -1,8 +1,6 @@
 authors = ["Jim Rainville"]
 description = "Next Object Request Processing"
 language = "rust"
+manifest_version = 1
 name = "sva_nor"
 service_id = "0Cp6k8IASGg9m8iw3VDmOs"
-version = 38
-
-[manifest_version]
