@@ -1,6 +1,6 @@
 //! Default Compute@Edge template program.
 
-use fastly::http::{Method};
+use fastly::http::Method;
 use fastly::{Error, Request, Response};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -37,7 +37,6 @@ fn main(req: Request) -> Result<Response, Error> {
             // We looked for a cmcd-request header and it wasn't there so let's see if it's in the
             // query parameters.
             if let Ok(q) = req.get_query() {
-                // println!("qp={:?}", q);
                 let qs_map: HashMap<String, String> = q;
 
                 if qs_map.contains_key("CMCD") {
@@ -52,52 +51,20 @@ fn main(req: Request) -> Result<Response, Error> {
 }
 
 
-fn get_query_param_str(req: &Request) -> Option<String> {
-
-    if let Ok(q) = req.get_query() {
-        // println!("qp={:?}", q);
-        let mut qs_map: HashMap<String, String> = q;
-
-        if qs_map.contains_key("CMCD") {
-            let mut cmd = qs_map.get("CMCD").unwrap();
-            let uuid = Uuid::new_v4();
-            let new_cmd = format!("{},srid=\"{}\"", cmd, uuid);
-            cmd = &new_cmd;
-            *qs_map.get_mut("CMCD").unwrap() = cmd.to_string();
-            // println!("QS Map: {:?}", qs_map);
-            // println!("CMD: {}", cmd);
-
-            let mut new_req = req.clone_without_body();
-            new_req.set_query(&qs_map).unwrap();
-            return Some(new_req.get_query_str().unwrap().to_string());
-        } else {
-            // The request did not contain a CMCD so just return the original query string.
-            return Some(req.get_query_str().unwrap().to_string());
-        }
-    };
-    None
-}
-
-/*
-fn get_query_params(req: &Request) -> Option<HashMap<String, String>> {
-
-}
-
- */
-
 fn send_nor_request(cmcd: String, req: &Request) {
     match get_nor(cmcd) {
         Some(nor) => {
             let nor_len = nor.len() - 1;
+            // Hackage to get rid of enclosing quotes.
             let escaped_nor = &nor[1..nor_len];
             let nor_url = format!("{}{}", BASE_URL, escaped_nor);
-            let nor_qp = get_query_param_str(req);
+            let nor_qp = get_query_params(req);
             println!("Nor url: {:?}", nor_url);
             let mut nor_req = req.clone_without_body();
             nor_req.set_url(nor_url.as_str());
             nor_req.set_method(Method::HEAD);
             if nor_qp.is_some() {
-                nor_req.set_query_str(nor_qp.unwrap().as_str());
+                nor_req.set_query(&nor_qp.unwrap());
             }
             println!("QS After Function: {}", nor_req.get_query_str().unwrap());
 
@@ -107,6 +74,7 @@ fn send_nor_request(cmcd: String, req: &Request) {
     }
 }
 
+/// This function looks through a CMCD argument to find a nor value.
 fn get_nor(cmcd: String) -> Option<String> {
     let parsed: Vec<&str> = cmcd.split(',').collect();
 
@@ -117,11 +85,30 @@ fn get_nor(cmcd: String) -> Option<String> {
             kv_map.insert(i[0], i[1]);
         }
     }
-    // println!("kv_map: {}", kv_map.get("rid").unwrap());
 
     let nor = match kv_map.get("nor") {
         Some(n) => Some(n.to_string()),
         None => None,
     };
     nor
+}
+
+/// This function gets the query parameters for a nor request. It takes the original request as
+/// input. If the orig request does not contain params it returns none. If it does then it looks
+/// for a CMCD parameter. If one exists it inserts an 'srid' element. If not it just returns the
+/// original query parameters.
+fn get_query_params(req: &Request) -> Option<HashMap<String, String>> {
+    if let Ok(q) = req.get_query() {
+        let mut qs_map: HashMap<String, String> = q;
+        if qs_map.contains_key("CMCD") {
+            let mut cmd = qs_map.get("CMCD").unwrap();
+            let uuid = Uuid::new_v4();
+            let new_cmd = format!("{},srid=\"{}\"", cmd, uuid);
+            cmd = &new_cmd;
+            *qs_map.get_mut("CMCD").unwrap() = cmd.to_string();
+        }
+
+        return Some(qs_map);
+    };
+    None
 }
