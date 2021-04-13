@@ -3,6 +3,7 @@
 use fastly::http::{Method};
 use fastly::{Error, Request, Response};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 /// The name of a backend server associated with this service.
 ///
@@ -50,16 +51,56 @@ fn main(req: Request) -> Result<Response, Error> {
     Ok(req.send(BACKEND)?)
 }
 
+
+fn get_query_param_str(req: &Request) -> Option<String> {
+
+    if let Ok(q) = req.get_query() {
+        // println!("qp={:?}", q);
+        let mut qs_map: HashMap<String, String> = q;
+
+        if qs_map.contains_key("CMCD") {
+            let mut cmd = qs_map.get("CMCD").unwrap();
+            let uuid = Uuid::new_v4();
+            let new_cmd = format!("{},srid=\"{}\"", cmd, uuid);
+            cmd = &new_cmd;
+            *qs_map.get_mut("CMCD").unwrap() = cmd.to_string();
+            // println!("QS Map: {:?}", qs_map);
+            // println!("CMD: {}", cmd);
+
+            let mut new_req = req.clone_without_body();
+            new_req.set_query(&qs_map).unwrap();
+            return Some(new_req.get_query_str().unwrap().to_string());
+        } else {
+            // The request did not contain a CMCD so just return the original query string.
+            return Some(req.get_query_str().unwrap().to_string());
+        }
+    };
+    None
+}
+
+/*
+fn get_query_params(req: &Request) -> Option<HashMap<String, String>> {
+
+}
+
+ */
+
 fn send_nor_request(cmcd: String, req: &Request) {
     match get_nor(cmcd) {
         Some(nor) => {
             let nor_len = nor.len() - 1;
             let escaped_nor = &nor[1..nor_len];
             let nor_url = format!("{}{}", BASE_URL, escaped_nor);
+            let nor_qp = get_query_param_str(req);
             println!("Nor url: {:?}", nor_url);
             let mut nor_req = req.clone_without_body();
             nor_req.set_url(nor_url.as_str());
             nor_req.set_method(Method::HEAD);
+            if nor_qp.is_some() {
+                nor_req.set_query_str(nor_qp.unwrap().as_str());
+            }
+            println!("QS After Function: {}", nor_req.get_query_str().unwrap());
+
             nor_req.send_async(BACKEND);
         }
         None => println!("Nor not found"),
